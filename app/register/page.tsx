@@ -11,12 +11,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { EmailStep } from '@/components/register/EmailStep';
 import { NameStep } from '@/components/register/NameStep';
 import { CountryStep } from '@/components/register/CountryStep';
-import { 
-  registerSchema, 
-  emailStepSchema, 
-  nameStepSchema, 
-  countryStepSchema 
-} from '@/lib/schemas/register';
+import { registerSchema } from '@/lib/schemas/register';
 
 type FormData = z.infer<typeof registerSchema>;
 
@@ -34,37 +29,32 @@ export default function RegisterPage() {
       lastName: '',
       country: '',
     },
+    mode: 'onChange', // This enables real-time validation
   });
 
   const validateCurrentStep = async () => {
+    let isValid = false;
     const values = form.getValues();
+
     try {
       if (step === 1) {
-        await emailStepSchema.parseAsync({
-          email: values.email,
-          confirmEmail: values.confirmEmail,
-        });
+        // Only validate email fields
+        await form.trigger(['email', 'confirmEmail']);
+        isValid = !form.formState.errors.email && !form.formState.errors.confirmEmail;
       } else if (step === 2) {
-        await nameStepSchema.parseAsync({
-          firstName: values.firstName,
-          lastName: values.lastName,
-        });
+        // Only validate name fields
+        await form.trigger(['firstName', 'lastName']);
+        isValid = !form.formState.errors.firstName && !form.formState.errors.lastName;
       } else if (step === 3) {
-        await countryStepSchema.parseAsync({
-          country: values.country,
-        });
+        // Only validate country field
+        await form.trigger(['country']);
+        isValid = !form.formState.errors.country;
       }
-      return true;
+      
+      console.log('Current step validation result:', isValid);
+      return isValid;
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        error.errors.forEach((err) => {
-          if (err.path) {
-            form.setError(err.path[0] as any, {
-              message: err.message,
-            });
-          }
-        });
-      }
+      console.error('Validation error:', error);
       return false;
     }
   };
@@ -78,9 +68,13 @@ export default function RegisterPage() {
       return;
     }
 
+    // Final step validation
+    const isValid = await validateCurrentStep();
+    if (!isValid) return;
+
     setIsSubmitting(true);
     try {
-      // Here you would call your Firebase registration function
+      // Here you would call your registration function
       toast({
         title: "Registration Successful!",
         description: "Welcome to Kingdom Runners! You can now log in to your account.",
@@ -95,6 +89,13 @@ export default function RegisterPage() {
       });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleNext = async () => {
+    const isValid = await validateCurrentStep();
+    if (isValid) {
+      setStep(step + 1);
     }
   };
 
@@ -122,12 +123,22 @@ export default function RegisterPage() {
                     Previous
                   </Button>
                 )}
-                <Button 
-                  type="submit" 
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? 'Processing...' : step === 3 ? 'Complete Registration' : 'Next'}
-                </Button>
+                {step < 3 ? (
+                  <Button 
+                    type="button"
+                    onClick={handleNext}
+                    disabled={isSubmitting}
+                  >
+                    Next
+                  </Button>
+                ) : (
+                  <Button 
+                    type="submit" 
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? 'Processing...' : 'Complete Registration'}
+                  </Button>
+                )}
               </div>
             </form>
           </Form>
